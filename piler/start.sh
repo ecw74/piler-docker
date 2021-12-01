@@ -8,7 +8,7 @@ MYSQL_DB_CREATED="${SYSCONFDIR}/piler/mysql_db_created"
 SPHINX_CONF="${SYSCONFDIR}/piler/sphinx.conf"
 NGINX_CONF="${SYSCONFDIR}/piler/piler-nginx.conf"
 SITE_CONFIG_PHP="${SYSCONFDIR}/piler/config-site.php"
-CRONT_TAB_PILER="${SYSCONFDIR}/piler/crontab.piler"
+CRONT_TAB_PILER="${SYSCONFDIR}/piler/cron.jobs"
 
 setup_tz() {
     rm -rf /etc/localtime

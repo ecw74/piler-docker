@@ -1,4 +1,15 @@
-FROM debian:sid-slim
+#FROM debian:sid-slim
+FROM debian:bullseye-slim
+
+ARG VCS_REF="N/A"
+
+LABEL maintainer=az@zok.xyz \
+    org.label-schema.name="Mailpiler container" \
+    org.label-schema.description="Mailpiler container." \
+    org.label-schema.url="https://www.mailpiler.org/" \
+    org.label-schema.vcs-url="https://github.com/ecw74/piler-docker" \
+    org.label-schema.version=$VCS_REF \
+    org.label-schema.schema-version="1.0"
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -42,14 +53,14 @@ ENV MAILPILER_GIT_TAG=${MAILPILER_GIT_TAG}
 ENV PILER_SRC_FOLDER=/src
 
 ENV SPHINX_DOWNLOAD_URL_BASE="https://download.mailpiler.com/generic-local" \
-SPHINX_BIN_TARGZ="sphinx-3.1.1-bin.tar.gz" \
-SPHINX_BIN_TARGZ_SHA256="f543fae12d4a240b424a906519936c8ada6e338346e215edfe0b8ec75c930d56"
+SPHINX_BIN_TARGZ="sphinx-3.3.1-bin.tar.gz" \
+SPHINX_BIN_TARGZ_SHA256="2742f92c7e3818157101175d93509fefbee2f8306f2f8d4c4277cb6ecafce082"
 
 RUN echo "**** install required packages ****" && \
 	apt-get update && \
 	apt-get -y dist-upgrade && \
 	apt-get -y install build-essential busybox-syslogd catdoc cron curl default-libmysqlclient-dev libssl-dev \
-	    		libtre-dev libwrap0-dev libzip-dev mysql-client nginx php7.4-curl php7.4-fpm php7.4-gd php7.4-ldap php7.4-memcache \
+	    		libtre-dev libwrap0-dev libzip-dev default-mysql-client nginx php7.4-curl php7.4-fpm php7.4-gd php7.4-ldap php7.4-memcache \
                 php7.4-mysql php7.4-common poppler-utils python3-mysqldb supervisor sysstat tnef unrtf vim git && \
 	echo "**** add user ****" && \
 	groupadd piler && \
@@ -82,6 +93,7 @@ RUN echo "**** install required packages ****" && \
     cp /build/piler/util/db-mysql.sql ${PILER_SRC_FOLDER} && \
 	cp /build/piler/etc/sphinx.conf.dist ${PILER_SRC_FOLDER} && \
 	cp /build/piler/etc/piler.conf ${PILER_SRC_FOLDER} && \
+	cp /build/piler/etc/cron.jobs ${PILER_SRC_FOLDER} && \
 	cp /build/piler/contrib/webserver/piler-nginx.conf ${PILER_SRC_FOLDER} && \
 	cp -R /build/piler/webui ${PILER_SRC_FOLDER} && \
 	echo "**** cleanup ****" && \
@@ -94,11 +106,6 @@ RUN echo "**** install required packages ****" && \
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
-
-# Fix till 1.3.8
-RUN rm -rf /usr/local/libexec/piler/pilerpurge.py
-COPY pilerpurge.py /usr/local/libexec/piler/pilerpurge.py
-RUN chmod +x /usr/local/libexec/piler/pilerpurge.py
 
 EXPOSE 25/tcp
 EXPOSE 80/tcp
