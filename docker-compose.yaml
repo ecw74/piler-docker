@@ -1,0 +1,62 @@
+# On Centos add docker interface to trusted zone
+# firewall-cmd --zone=public --add-masquerade --permanent
+# firewall-cmd --permanent --zone=trusted --add-interface=docker0
+# firewall-cmd --zone=public --permanent --add-port=2025/tcp
+# firewall-cmd --reload
+#
+# Hint: Enable promiscuous mode on a virtual switch or portgroup  https://kb.vmware.com/s/article/1004099
+#
+
+version: "3"
+
+services:
+    piler:
+        container_name: piler
+        hostname: piler
+        depends_on:
+            piler-db:
+                condition: service_healthy
+        build: piler
+        ports:
+            - "80:80"
+            - "2025:25"
+        restart: always
+        volumes:
+            - ./data/piler/config:/usr/local/etc/piler
+            - ./data/piler/data:/var/piler
+        environment:
+            TZ: "Europe/Berlin"
+            MYSQL_ROOT_PASSWORD: "${PILER_MYSQL_HOSTNAME}"
+            MYSQL_HOSTNAME: piler-db
+            MYSQL_DATABASE: "${PILER_MYSQL_DATABASE}"
+            MYSQL_USER: "${PILER_MYSQL_PILER_USER}"
+            MYSQL_PASSWORD: "${PILER_MYSQL_PILER_PASSWORD}"
+            SITE_CONFIG_PHP_SITE_NAME: "${PILER_HOST}"
+            SITE_CONFIG_PHP_SITE_URL: "http://${PILER_HOST}/"
+            SITE_CONFIG_PHP_DB_HOSTNAME: "${PILER_MYSQL_HOSTNAME}"
+            SITE_CONFIG_PHP_DB_DATABASE: "${PILER_MYSQL_DATABASE}"
+            SITE_CONFIG_PHP_DB_USERNAME: "${PILER_MYSQL_PILER_USER}"
+            SITE_CONFIG_PHP_DB_PASSWORD: "${PILER_MYSQL_PILER_PASSWORD}"
+            SITE_CONFIG_PHP_TIMEZONE: "Europe/Berlin"
+            SITE_CONFIG_PHP_DEFAULT_LANG: "de"
+
+
+    piler-db:
+        container_name: piler-db
+        hostname: piler-db
+        image: mariadb:latest
+        restart: always
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+        environment:
+            MYSQL_ROOT_PASSWORD: ${PILER_MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${PILER_MYSQL_DATABASE}
+            MYSQL_USER: ${PILER_MYSQL_PILER_USER}
+            MYSQL_PASSWORD: ${PILER_MYSQL_PILER_PASSWORD}
+        healthcheck:
+            test: "mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --execute \"SHOW DATABASES;\""
+            interval: 2s
+            timeout: 20s
+            retries: 10
+        networks:
+            default:
