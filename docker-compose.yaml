@@ -1,12 +1,3 @@
-# On Centos add docker interface to trusted zone
-# firewall-cmd --zone=public --add-masquerade --permanent
-# firewall-cmd --permanent --zone=trusted --add-interface=docker0
-# firewall-cmd --zone=public --permanent --add-port=2025/tcp
-# firewall-cmd --reload
-#
-# Hint: Enable promiscuous mode on a virtual switch or portgroup  https://kb.vmware.com/s/article/1004099
-#
-
 version: "3"
 
 services:
