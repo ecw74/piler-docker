@@ -4,8 +4,8 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-PILER_VERSION="1.3.11"
-MAILPILER_GIT_TAG="5c2ceb178b4df0ca4a3ac1b41fb380715af4fb7c"
+PILER_VERSION="1.3.10"
+MAILPILER_GIT_TAG="piler-1.3.10"
 IMAGE_NAME="ecw74/piler"
 VCS_REF=$(git rev-parse --short HEAD)
 
