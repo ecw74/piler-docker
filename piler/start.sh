@@ -110,7 +110,7 @@ create_nginx_conf() {
 
         {
             echo "\$memcached_server = ['${MEMCACHED_HOST}', 11211];"
-            "?>"
+            echo "?>"
         } >> "${SITE_CONFIG_PHP}"
     fi
 }
