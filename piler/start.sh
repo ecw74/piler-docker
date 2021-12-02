@@ -4,11 +4,20 @@ DATAROOTDIR="/var"
 SYSCONFDIR="/usr/local/etc"
 PILER_KEY="${SYSCONFDIR}/piler/piler.key"
 PILER_CONF="${SYSCONFDIR}/piler/piler.conf"
-MYSQL_DB_CREATED="${SYSCONFDIR}/piler/mysql_db_created"
+PILER_MY_CNF="${SYSCONFDIR}/piler/.my.cnf"
 SPHINX_CONF="${SYSCONFDIR}/piler/sphinx.conf"
 NGINX_CONF="${SYSCONFDIR}/piler/piler-nginx.conf"
 SITE_CONFIG_PHP="${SYSCONFDIR}/piler/config-site.php"
-CRONT_TAB_PILER="${SYSCONFDIR}/piler/crontab.piler"
+CRONT_TAB_PILER="${SYSCONFDIR}/piler/piler.cron"
+
+give_it_to_piler() {
+   local f="$1"
+
+   [[ -f "$f" ]] || error "${f} does not exist, aborting"
+
+   chown "${PILER_USER}:${PILER_USER}" "$f"
+   chmod 600 "$f"
+}
 
 setup_tz() {
     rm -rf /etc/localtime
@@ -16,31 +25,10 @@ setup_tz() {
     echo $TZ > /etc/timezone
 }
 
-create_mysql_db() {
-    if [[ ! -f "${MYSQL_DB_CREATED}" ]]; then
-        echo "-- Create MySQLDatabase"
-        mysql -h "$MYSQL_HOSTNAME" -u "$MYSQL_PILER_USER" --password="$MYSQL_PILER_PASSWORD" "$MYSQL_DATABASE" < "${PILER_SRC_FOLDER}/db-mysql.sql"
-        touch "$MYSQL_DB_CREATED"
-    fi
-}
-
 create_cron_entries() {
     echo "-- Crontab Entires"
     if [[ ! -f "${CRONT_TAB_PILER}" ]]; then
-        {
-            echo "";
-            echo "### PILERSTART";
-            echo "5,35 * * * * /usr/local/libexec/piler/indexer.delta.sh";
-            echo "30   2 * * * /usr/local/libexec/piler/indexer.main.sh";
-            echo "3 * * * * /usr/local/libexec/piler/watch_sphinx_main_index.sh";
-            echo "*/15 * * * * /usr/bin/indexer --quiet tag1 --rotate --config ${SPHINX_CONF}";
-            echo "*/15 * * * * /usr/bin/indexer --quiet note1 --rotate --config ${SPHINX_CONF}";
-            echo "30   6 * * * /usr/bin/php /usr/local/libexec/piler/generate_stats.php --webui /var/piler/www >/dev/null";
-            echo "*/5 * * * * /usr/bin/find /var/piler/error -type f|wc -l > /var/piler/stat/error";
-            echo "*/5 * * * * /usr/bin/find /var/piler/www/tmp -type f -name i.\* -exec rm -f {} \;";
-            echo "2 0 * * * /usr/local/libexec/piler/pilerpurge.py -c ${PILER_CONF}";
-            echo "### PILEREND";
-        } >> "${CRONT_TAB_PILER}"
+        cp ${PILER_SRC_FOLDER}/piler.cron ${CRONT_TAB_PILER}
     fi
 
     crontab -u "$PILER_USER" "$CRONT_TAB_PILER"
@@ -87,6 +75,7 @@ create_piler_conf() {
         sed -i "s%mysqlsocket=.*%mysqlhost=${MYSQL_HOSTNAME}\nmysqlport=3306%" "$PILER_CONF"
         sed -i "s%mysqluser=.*%mysqluser=${MYSQL_PILER_USER}%" "$PILER_CONF"
         sed -i "s%mysqlpwd=.*%mysqlpwd=${MYSQL_PILER_PASSWORD}%" "$PILER_CONF"
+        sed -i "s%memcached_servers=.*%memcached_servers=${MEMCACHED_HOST}%" "$PILER_CONF"
 
         # Bugfix see https://bitbucket.org/jsuto/piler/issues/880/pilerpurge-not-working
         echo "queuedir=/var/piler/store" >> "$PILER_CONF"
@@ -119,13 +108,14 @@ create_nginx_conf() {
                 echo "\$config['${v//SITE_CONFIG_PHP_/}'] = '${!v}';" >> "${SITE_CONFIG_PHP}"
         done
 
-        echo "?>" >> "${SITE_CONFIG_PHP}"
-
+        {
+            echo "\$memcached_server = ['${MEMCACHED_HOST}', 11211];"
+            "?>"
+        } >> "${SITE_CONFIG_PHP}"
     fi
 }
 
-create_folders()
- {
+create_folders() {
     if [[ ! -d "${DATAROOTDIR}/piler/stat" ]]; then
         mkdir -p ${DATAROOTDIR}/piler/stat
         chown -R $PILER_USER ${DATAROOTDIR}/piler/stat
@@ -145,7 +135,38 @@ create_folders()
         mkdir -p ${DATAROOTDIR}/piler/tmp
         chown -R $PILER_USER ${DATAROOTDIR}/piler/tmp
     fi
- }
+}
+
+wait_until_mysql_server_is_ready() {
+   while true; do if mysql "--defaults-file=${PILER_MY_CNF}" <<< "show databases"; then break; fi; log "${MYSQL_HOSTNAME} is not ready"; sleep 5; done
+   echo "-- ${MYSQL_HOSTNAME} is ready"
+}
+
+create_database() {
+   local table
+   local has_metadata_table=0
+
+   wait_until_mysql_server_is_ready
+
+   while read -r table; do
+      if [[ "$table" == metadata ]]; then has_metadata_table=1; fi
+   done < <(mysql "--defaults-file=${PILER_MY_CNF}" "$MYSQL_DATABASE" <<< 'show tables')
+
+   if [[ $has_metadata_table -eq 0 ]]; then
+      echo "-- Create MySQLDatabase"
+      mysql "--defaults-file=${PILER_MY_CNF}" "$MYSQL_DATABASE" < /usr/share/piler/db-mysql.sql
+   else
+      echo "-- MySQLDatabase exists"
+   fi
+}
+
+create_my_cnf_files() {
+   printf "[client]\nhost = %s\nuser = %s\npassword = %s\n[mysqldump]\nhost = %s\nuser = %s\npassword = %s\n" \
+      "$MYSQL_HOSTNAME" "$MYSQL_USER" "$MYSQL_PASSWORD" "$MYSQL_HOSTNAME" "$MYSQL_USER" "$MYSQL_PASSWORD" \
+      > "$PILER_MY_CNF"
+
+   give_it_to_piler "$PILER_MY_CNF"
+}
 
 # create required configs
 echo "-----------------------------------------------------------"
@@ -153,7 +174,8 @@ echo "-- Mailpiler Host"
 echo "-----------------------------------------------------------"
 setup_tz
 create_folders
-create_mysql_db
+create_my_cnf_files
+create_database
 create_cron_entries
 create_sphinx_conf
 create_piler_key

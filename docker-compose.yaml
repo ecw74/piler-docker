@@ -10,6 +10,35 @@
 version: "3"
 
 services:
+    piler-db:
+        container_name: piler-db
+        hostname: piler-db
+        image: mariadb:latest
+        restart: always
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+        environment:
+            MYSQL_ROOT_PASSWORD: ${PILER_MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${PILER_MYSQL_DATABASE}
+            MYSQL_USER: ${PILER_MYSQL_PILER_USER}
+            MYSQL_PASSWORD: ${PILER_MYSQL_PILER_PASSWORD}
+        healthcheck:
+            test: "mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --execute \"SHOW DATABASES;\""
+            interval: 2s
+            timeout: 20s
+            retries: 10
+        networks:
+            default:
+
+    piler-memcached:
+        container_name: piler-memcached
+        hostname: piler-memcached
+        image: memcached:latest
+        restart: unless-stopped
+        cap_drop:
+        - ALL
+        command: -m 64
+
     piler:
         container_name: piler
         hostname: piler
@@ -39,24 +68,5 @@ services:
             SITE_CONFIG_PHP_DB_PASSWORD: "${PILER_MYSQL_PILER_PASSWORD}"
             SITE_CONFIG_PHP_TIMEZONE: "Europe/Berlin"
             SITE_CONFIG_PHP_DEFAULT_LANG: "de"
-
-
-    piler-db:
-        container_name: piler-db
-        hostname: piler-db
-        image: mariadb:latest
-        restart: always
-        volumes:
-            - ./data/mysql:/var/lib/mysql
-        environment:
-            MYSQL_ROOT_PASSWORD: ${PILER_MYSQL_ROOT_PASSWORD}
-            MYSQL_DATABASE: ${PILER_MYSQL_DATABASE}
-            MYSQL_USER: ${PILER_MYSQL_PILER_USER}
-            MYSQL_PASSWORD: ${PILER_MYSQL_PILER_PASSWORD}
-        healthcheck:
-            test: "mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --execute \"SHOW DATABASES;\""
-            interval: 2s
-            timeout: 20s
-            retries: 10
-        networks:
-            default:
+            SITE_CONFIG_PHP_ENABLE_MEMCACHED: "1"
+            MEMCACHED_HOST: "piler-memcached"
