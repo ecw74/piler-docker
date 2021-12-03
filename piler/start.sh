@@ -43,6 +43,7 @@ create_sphinx_conf() {
         sed -i "s%MYSQL_USERNAME%${MYSQL_PILER_USER}%" "$SPHINX_CONF"
         sed -i "s%MYSQL_PASSWORD%${MYSQL_PILER_PASSWORD}%" "$SPHINX_CONF"
         sed -i "s%220%311%" "$SPHINX_CONF"
+        sed -i "s/define('SPHINX_STRICT_SCHEMA', 0);/define('SPHINX_STRICT_SCHEMA', 1);/" "$SPHINX_CONF"
         # Bugfix see https://sphinxsearch.com/forum/view.html?id=16193
         sed -i "s%sql_query_kbatch%sql_query_killlist%" "$SPHINX_CONF"
     fi
@@ -109,8 +110,8 @@ create_nginx_conf() {
         done
 
         {
+            echo "\$config['SPHINX_STRICT_SCHEMA'] = 1;"
             echo "\$memcached_server = ['${MEMCACHED_HOST}', 11211];"
-            echo "?>"
         } >> "${SITE_CONFIG_PHP}"
     fi
 }
